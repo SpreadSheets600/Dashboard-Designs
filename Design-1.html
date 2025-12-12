@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JEE/NEET Student Dashboard | Focus Mode</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Tailwind Configuration to match Design Tokens -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+                    },
+                    colors: {
+                        canvas: '#FFFFFF',
+                        surface: '#F9FAFB', // base-100 / Gray-50
+                        border: '#E5E7EB',  // base-200 / Gray-200
+                        typeHigh: '#18181B', // Zinc-900
+                        typeMid: 'rgba(24, 24, 27, 0.6)',
+                        typeLow: 'rgba(24, 24, 27, 0.4)',
+                        accent: '#4F46E5', // Indigo-600
+                        success: '#059669', // Emerald-600
+                        error: '#F43F5E', // Rose-500
+                    },
+                    borderRadius: {
+                        '3xl': '1.5rem',
+                        '4xl': '2rem',
+                    },
+                    boxShadow: {
+                        'soft': '0 2px 8px rgba(0,0,0,0.04)',
+                        'hover': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Remix Icon (Replacement for SVG tags to adhere to NO SVG Constraint while providing high quality icons) -->
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+
+    <!-- Custom CSS for specific component constraints -->
+    <style>
+        /* Typography Setup */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FFFFFF;
+            color: #18181B;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Chart Container Strict Constraints */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 100%; /* Parent controls width usually, but this ensures no overflow */
+            height: 300px;
+            max-height: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+
+        /* Soft Transitions */
+        .hover-lift {
+            transition: transform 0.3s ease-out, box-shadow 0.3s ease-out;
+        }
+        .hover-lift:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Custom Progress Bar Animation */
+        .progress-fill {
+            transition: width 1s ease-out;
+        }
+
+        /* Hide scrollbar for clean look */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #E5E7EB;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Application Structure Plan: 
+         The app uses a 2-column grid layout (Sidebar + Main) for desktop, collapsing to a single column for mobile.
+         The core is the "Bento Grid" dashboard, which groups high-level metrics (Percentile) with actionable insights (Subject Proficiency).
+         Navigation is simplified to a top sticky header for context.
+         An "Analytics" section is added below the fold to provide depth (Chart.js) without cluttering the initial "Calm Focus" view.
+         Interaction flow: Load -> Overview -> Drill down into Analytics or Quick Actions.
+    -->
+
+    <!-- Global Header -->
+    <nav class="navbar bg-white/90 backdrop-blur-md sticky top-0 z-50 border-b border-border px-6 py-4 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-accent text-white flex items-center justify-center font-bold text-sm">
+                <i class="ri-graduation-cap-fill"></i>
+            </div>
+            <h1 class="text-xl font-medium tracking-tight text-typeHigh">Student<span class="text-typeMid">OS</span></h1>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <!-- Streak Indicator -->
+            <div class="hidden md:flex items-center gap-2 bg-surface px-3 py-1.5 rounded-full border border-border">
+                <span class="w-2 h-2 rounded-full bg-orange-400"></span>
+                <span class="text-xs font-medium text-typeMid" id="streak-display">Loading...</span>
+            </div>
+            <!-- Profile -->
+            <div class="w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center text-typeMid hover:border-gray-300 transition-colors cursor-pointer group relative">
+                <span class="text-sm font-medium" id="avatar-initials">--</span>
+                <!-- Simple Dropdown -->
+                <div class="absolute top-12 right-0 w-48 bg-white border border-border shadow-soft rounded-xl p-2 hidden group-hover:block">
+                    <div class="text-xs text-typeMid px-3 py-2">Signed in as Arjun</div>
+                    <div class="h-px bg-border my-1"></div>
+                    <button class="w-full text-left px-3 py-2 text-sm hover:bg-surface rounded-lg transition-colors">Settings</button>
+                    <button class="w-full text-left px-3 py-2 text-sm text-error hover:bg-red-50 rounded-lg transition-colors">Sign Out</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow max-w-7xl mx-auto w-full px-4 md:px-6 py-8 space-y-12">
+
+        <!-- SECTION 1: DASHBOARD OVERVIEW (The Bento Grid) -->
+        <section id="dashboard-overview">
+            <div class="mb-8">
+                <h2 class="text-2xl font-light text-typeHigh mb-2">Good Morning, <span class="font-medium" id="user-name">Student</span></h2>
+                <p class="text-typeMid max-w-2xl">
+                    Here is your focus report for today. Your predicted percentile has stabilized. 
+                    Focus on maintaining your Chemistry streak while addressing the dip in Mathematics.
+                </p>
+            </div>
+
+            <!-- Bento Grid Layout -->
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                
+                <!-- Module A: The "Big Number" (Predicted Percentile) - Spans 4 columns -->
+                <div class="col-span-1 md:col-span-4 card bg-white border border-border rounded-3xl p-8 shadow-soft hover-lift flex flex-col justify-between">
+                    <div class="flex justify-between items-start mb-4">
+                        <h2 class="text-xs font-medium text-typeMid uppercase tracking-wide">Predicted Percentile</h2>
+                        <span class="bg-emerald-50 text-success px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1">
+                            <i class="ri-arrow-up-line"></i> <span id="percentile-delta">0.0%</span>
+                        </span>
+                    </div>
+                    <div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-6xl font-light text-typeHigh tracking-tighter tabular-nums" id="main-percentile">--.-</span>
+                            <span class="text-2xl text-typeMid font-light">%</span>
+                        </div>
+                        <p class="mt-4 text-sm text-typeLow">Based on last <span id="test-count">0</span> mock tests.</p>
+                    </div>
+                </div>
+
+                <!-- Module B: Subject Proficiency (The "Equalizer") - Spans 5 columns -->
+                <div class="col-span-1 md:col-span-5 card bg-white border border-border rounded-3xl p-6 shadow-soft hover-lift">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xs font-medium text-typeMid uppercase tracking-wide">Subject Proficiency</h3>
+                        <button class="text-xs text-accent hover:text-indigo-700 transition-colors">View Details</button>
+                    </div>
+                    <div class="space-y-6" id="subject-bars-container">
+                        <!-- Bars injected by JS -->
+                        <div class="animate-pulse flex space-x-4">
+                            <div class="flex-1 space-y-4 py-1">
+                                <div class="h-4 bg-gray-100 rounded w-3/4"></div>
+                                <div class="h-4 bg-gray-100 rounded"></div>
+                                <div class="h-4 bg-gray-100 rounded w-5/6"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Module C: Quick Actions - Spans 3 columns -->
+                <div class="col-span-1 md:col-span-3 grid grid-rows-2 gap-4">
+                    <button onclick="triggerAction('resume')" class="bg-white hover:bg-surface border border-border rounded-3xl flex flex-col items-center justify-center gap-2 shadow-soft hover-lift transition-all p-4 group">
+                        <div class="w-10 h-10 rounded-full bg-indigo-50 text-accent flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                            <i class="ri-play-fill"></i>
+                        </div>
+                        <span class="text-xs font-medium text-typeMid">Resume Test</span>
+                    </button>
+                    
+                    <button onclick="scrollToAnalytics()" class="bg-white hover:bg-surface border border-border rounded-3xl flex flex-col items-center justify-center gap-2 shadow-soft hover-lift transition-all p-4 group">
+                        <div class="w-10 h-10 rounded-full bg-emerald-50 text-success flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                            <i class="ri-bar-chart-box-line"></i>
+                        </div>
+                        <span class="text-xs font-medium text-typeMid">Analytics</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 2: PERFORMANCE ANALYTICS (Chart.js Implementation) -->
+        <section id="analytics-section" class="pt-8 border-t border-border">
+            <div class="mb-6 flex flex-col md:flex-row justify-between items-end gap-4">
+                <div>
+                    <h2 class="text-xl font-light text-typeHigh mb-2">Performance History</h2>
+                    <p class="text-typeMid text-sm max-w-xl">
+                        A detailed look at your percentile progression over the last 10 mock exams. 
+                        Consistent performance above the 95th percentile indicates exam readiness.
+                    </p>
+                </div>
+                <!-- Simple Filter Toggle -->
+                <div class="bg-surface p-1 rounded-lg border border-border inline-flex">
+                    <button onclick="updateChart('all')" class="px-4 py-1.5 rounded-md text-xs font-medium bg-white shadow-sm text-typeHigh transition-all" id="btn-filter-all">All Subjects</button>
+                    <button onclick="updateChart('math')" class="px-4 py-1.5 rounded-md text-xs font-medium text-typeMid hover:text-typeHigh transition-all" id="btn-filter-math">Math Only</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- Main Trend Chart -->
+                <div class="col-span-1 lg:col-span-2 bg-white border border-border rounded-3xl p-6 shadow-soft">
+                    <h3 class="text-xs font-medium text-typeMid uppercase tracking-wide mb-4">Percentile Trend</h3>
+                    
+                    <!-- Chart Container for Responsiveness -->
+                    <div class="chart-container">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Recent Activity Feed -->
+                <div class="col-span-1 bg-surface border border-border rounded-3xl p-6">
+                    <h3 class="text-xs font-medium text-typeMid uppercase tracking-wide mb-4">Recent Tests</h3>
+                    <div class="space-y-4" id="recent-activity-list">
+                        <!-- Activity items injected by JS -->
+                    </div>
+                    <button class="w-full mt-6 py-2 text-xs font-medium text-typeMid border border-border rounded-full hover:bg-white hover:text-accent transition-colors">
+                        View Full History
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-auto border-t border-border py-8">
+        <div class="max-w-7xl mx-auto px-6 text-center">
+            <p class="text-xs text-typeLow">&copy; 2025 StudentOS. Designed for Focus.</p>
+        </div>
+    </footer>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 pointer-events-none space-y-2"></div>
+
+    <!-- Data & Logic -->
+    <script>
+        // <!-- Chosen Palette: Zinc (Neutral) + Indigo (Accent) + Emerald (Success) + Rose (Error) -->
+        // <!-- Application Structure Plan: 
+        //      1. Top-down hierarchy: Global Context (Nav) -> High-level Stats (Bento) -> Deep Dive (Charts).
+        //      2. The 'Bento Grid' is chosen to group disparate data types (single number vs list vs actions) into a cohesive visual unit without scroll fatigue.
+        //      3. Interactions are subtle (hover lifts) to maintain 'Calm Focus'.
+        //      4. Data is stored in a simple state object and rendered purely via JS functions.
+        // -->
+        
+        // --- 1. MOCK DATA STORE ---
+        const appData = {
+            user: {
+                id: "u_123",
+                name: "Arjun K.",
+                initials: "AK",
+                streak: 14
+            },
+            metrics: {
+                currentPercentile: 98.4,
+                delta: 0.4,
+                testsTaken: 42,
+                accuracy: 88.5
+            },
+            subjects: [
+                { id: "phy", name: "Physics", score: 82, max: 100, color: "bg-indigo-500", labelColor: "text-indigo-600" },
+                { id: "chem", name: "Chemistry", score: 94, max: 100, color: "bg-purple-500", labelColor: "text-purple-600" },
+                { id: "math", name: "Mathematics", score: 65, max: 100, color: "bg-orange-400", labelColor: "text-orange-500" }
+            ],
+            history: [
+                { id: 1, date: "Oct 10", percentile: 96.5, math: 70 },
+                { id: 2, date: "Oct 14", percentile: 97.0, math: 68 },
+                { id: 3, date: "Oct 18", percentile: 96.8, math: 72 },
+                { id: 4, date: "Oct 21", percentile: 97.5, math: 65 },
+                { id: 5, date: "Oct 24", percentile: 98.4, math: 65 }
+            ],
+            recentActivity: [
+                { title: "Full Syllabus Mock #5", score: "240/300", date: "2 hrs ago", type: "exam" },
+                { title: "Physics: Rotational Motion", score: "15/20", date: "Yesterday", type: "quiz" },
+                { title: "Chemistry: Bonding", score: "18/20", date: "2 days ago", type: "quiz" }
+            ]
+        };
+
+        // --- 2. CORE RENDERING LOGIC ---
+
+        function initDashboard() {
+            renderHeader();
+            renderMetrics();
+            renderSubjects();
+            renderActivity();
+            initCharts();
+        }
+
+        function renderHeader() {
+            document.getElementById('user-name').textContent = appData.user.name.split(' ')[0];
+            document.getElementById('avatar-initials').textContent = appData.user.initials;
+            document.getElementById('streak-display').textContent = `${appData.user.streak} Day Streak`;
+        }
+
+        function renderMetrics() {
+            const percEl = document.getElementById('main-percentile');
+            const deltaEl = document.getElementById('percentile-delta');
+            const countEl = document.getElementById('test-count');
+
+            // Simple count-up animation for the big number
+            let start = 90.0;
+            const end = appData.metrics.currentPercentile;
+            const duration = 1000;
+            const startTime = performance.now();
+
+            function update(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Ease out cubic
+                const ease = 1 - Math.pow(1 - progress, 3);
+                
+                const current = start + (end - start) * ease;
+                percEl.textContent = current.toFixed(1);
+
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                }
+            }
+            requestAnimationFrame(update);
+
+            deltaEl.textContent = `+${appData.metrics.delta}%`;
+            countEl.textContent = appData.metrics.testsTaken;
+        }
+
+        function renderSubjects() {
+            const container = document.getElementById('subject-bars-container');
+            container.innerHTML = ''; // Clear skeleton
+
+            appData.subjects.forEach(sub => {
+                // Determine width for style
+                const widthPct = (sub.score / sub.max) * 100;
+                
+                const html = `
+                    <div class="group cursor-default">
+                        <div class="flex justify-between text-xs mb-2">
+                            <span class="font-medium text-typeHigh">${sub.name}</span>
+                            <span class="text-typeMid tabular-nums opacity-0 group-hover:opacity-100 transition-opacity duration-300">${sub.score}/${sub.max}</span>
+                        </div>
+                        <div class="h-3 w-full bg-surface rounded-full overflow-hidden border border-border">
+                            <div class="h-full ${sub.color} rounded-full progress-fill group-hover:brightness-90 transition-all duration-300 relative" style="width: 0%" data-width="${widthPct}%"></div>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', html);
+            });
+
+            // Trigger animation after render
+            setTimeout(() => {
+                const bars = document.querySelectorAll('.progress-fill');
+                bars.forEach(bar => {
+                    bar.style.width = bar.getAttribute('data-width');
+                });
+            }, 100);
+        }
+
+        function renderActivity() {
+            const list = document.getElementById('recent-activity-list');
+            list.innerHTML = '';
+            
+            appData.recentActivity.forEach(item => {
+                const icon = item.type === 'exam' ? 'ri-file-list-3-line text-accent' : 'ri-task-line text-success';
+                
+                const html = `
+                    <div class="flex items-center gap-3 p-3 hover:bg-white rounded-xl transition-colors cursor-pointer border border-transparent hover:border-border">
+                        <div class="w-8 h-8 rounded-full bg-surface flex items-center justify-center ${icon}">
+                            <i class="${icon.split(' ')[0]}"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h4 class="text-xs font-medium text-typeHigh truncate">${item.title}</h4>
+                            <p class="text-[10px] text-typeLow">${item.date}</p>
+                        </div>
+                        <div class="text-xs font-semibold text-typeMid bg-surface px-2 py-1 rounded-md">
+                            ${item.score}
+                        </div>
+                    </div>
+                `;
+                list.insertAdjacentHTML('beforeend', html);
+            });
+        }
+
+        // --- 3. CHART INTERACTION ---
+        
+        // <!-- Visualization & Content Choices: 
+        //      Report Info: Test History over time.
+        //      Goal: Show progress/trends (Change).
+        //      Viz Method: Line Chart (Chart.js).
+        //      Interaction: Toggle between All Subjects vs Math specific view. Tooltips for exact data.
+        //      Justification: Line charts are best for time-series data. Canvas offers performance over DOM nodes for charts.
+        //      Library: Chart.js (Mandatory & Robust).
+        // -->
+        
+        let trendChartInstance = null;
+
+        function initCharts() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            // Prepare Data
+            const labels = appData.history.map(h => h.date);
+            const dataAll = appData.history.map(h => h.percentile);
+            
+            // Create Gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(79, 70, 229, 0.2)'); // Indigo with opacity
+            gradient.addColorStop(1, 'rgba(79, 70, 229, 0)');
+
+            trendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Overall Percentile',
+                        data: dataAll,
+                        borderColor: '#4F46E5', // Indigo-600
+                        backgroundColor: gradient,
+                        borderWidth: 2,
+                        pointBackgroundColor: '#FFFFFF',
+                        pointBorderColor: '#4F46E5',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        fill: true,
+                        tension: 0.4 // Smooth curves
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: '#18181B',
+                            titleFont: { family: 'Inter', size: 12 },
+                            bodyFont: { family: 'Inter', size: 12 },
+                            padding: 10,
+                            cornerRadius: 8,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y + '% Percentile';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: 90,
+                            max: 100,
+                            grid: {
+                                color: '#F3F4F6',
+                                borderDash: [5, 5]
+                            },
+                            ticks: {
+                                font: { family: 'Inter', size: 10 },
+                                color: '#9CA3AF'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                font: { family: 'Inter', size: 10 },
+                                color: '#9CA3AF'
+                            }
+                        }
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    }
+                }
+            });
+        }
+
+        // --- 4. INTERACTION HANDLERS ---
+
+        function triggerAction(action) {
+            let msg = "";
+            if (action === 'resume') {
+                msg = "Resuming 'Full Syllabus Mock #5'...";
+            }
+            showToast(msg, 'success');
+        }
+
+        function scrollToAnalytics() {
+            document.getElementById('analytics-section').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function updateChart(filter) {
+            // Update UI State
+            const btnAll = document.getElementById('btn-filter-all');
+            const btnMath = document.getElementById('btn-filter-math');
+            
+            if (filter === 'all') {
+                btnAll.className = "px-4 py-1.5 rounded-md text-xs font-medium bg-white shadow-sm text-typeHigh transition-all";
+                btnMath.className = "px-4 py-1.5 rounded-md text-xs font-medium text-typeMid hover:text-typeHigh transition-all";
+                
+                // Update Data
+                trendChartInstance.data.datasets[0].data = appData.history.map(h => h.percentile);
+                trendChartInstance.data.datasets[0].label = "Overall Percentile";
+                trendChartInstance.data.datasets[0].borderColor = '#4F46E5';
+                trendChartInstance.options.scales.y.min = 90;
+            } else {
+                btnMath.className = "px-4 py-1.5 rounded-md text-xs font-medium bg-white shadow-sm text-typeHigh transition-all";
+                btnAll.className = "px-4 py-1.5 rounded-md text-xs font-medium text-typeMid hover:text-typeHigh transition-all";
+                
+                // Update Data
+                trendChartInstance.data.datasets[0].data = appData.history.map(h => h.math);
+                trendChartInstance.data.datasets[0].label = "Math Score";
+                trendChartInstance.data.datasets[0].borderColor = '#FB923C'; // Orange
+                trendChartInstance.options.scales.y.min = 50; // Math scores are lower
+            }
+            
+            trendChartInstance.update();
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const el = document.createElement('div');
+            
+            // Toast Styles
+            const bgClass = type === 'success' ? 'bg-white border-l-4 border-success' : 'bg-white border-l-4 border-accent';
+            
+            el.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-hover transform translate-y-10 opacity-0 transition-all duration-300 ${bgClass}`;
+            el.innerHTML = `
+                <div class="flex-shrink-0">
+                    <i class="ri-${type === 'success' ? 'check-line text-success' : 'information-line text-accent'}"></i>
+                </div>
+                <p class="text-xs font-medium text-typeHigh">${message}</p>
+            `;
+            
+            container.appendChild(el);
+            
+            // Animate In
+            requestAnimationFrame(() => {
+                el.classList.remove('translate-y-10', 'opacity-0');
+            });
+
+            // Animate Out & Remove
+            setTimeout(() => {
+                el.classList.add('translate-y-10', 'opacity-0');
+                setTimeout(() => el.remove(), 300);
+            }, 3000);
+        }
+
+        // Initialize App
+        window.addEventListener('DOMContentLoaded', initDashboard);
+
+        // <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. (Remix Icons via CSS/font classes used instead) -->
+    </script>
+</body>
+</html>
