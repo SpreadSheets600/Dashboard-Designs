@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrepSpace: Focus Workspace Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Typography & Base */
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #F8FAFC; /* slate-50 */
+            color: #1E293B; /* slate-800 */
+        }
+
+        /* Chart Container Strict Styling */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px; /* max-w-xl equivalent */
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 320px;
+            }
+        }
+
+        /* Custom Scrollbar for Workspace Feel */
+        .workspace-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .workspace-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .workspace-scroll::-webkit-scrollbar-thumb {
+            background-color: #CBD5E1;
+            border-radius: 4px;
+        }
+        .workspace-scroll::-webkit-scrollbar-thumb:hover {
+            background-color: #94A3B8;
+        }
+
+        /* Interactive Elements */
+        .nav-item {
+            transition: all 0.2s ease;
+        }
+        .nav-item:hover, .nav-item.active {
+            background-color: #E2E8F0;
+            color: #0F172A;
+        }
+
+        .heatmap-cell {
+            transition: transform 0.2s;
+        }
+        .heatmap-cell:hover {
+            transform: scale(1.2);
+            border: 1px solid #64748B;
+        }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden text-slate-800">
+
+    <!-- Mobile Overlay -->
+    <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden" onclick="toggleSidebar()"></div>
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="w-72 bg-slate-100 border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
+        <!-- Brand -->
+        <div class="p-6 flex items-center gap-3">
+            <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">P</div>
+            <span class="font-bold text-xl tracking-tight text-slate-900">PrepSpace</span>
+        </div>
+
+        <!-- Exam Switcher -->
+        <div class="px-4 mb-6">
+            <label class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block px-2">Current Goal</label>
+            <div class="relative">
+                <select id="exam-switcher" onchange="switchContext(this.value)" class="w-full appearance-none bg-white border border-slate-300 hover:border-indigo-400 text-slate-700 py-2 pl-3 pr-8 rounded-md leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors cursor-pointer text-sm font-medium shadow-sm">
+                    <option value="GMAT">GMAT Focus 2024</option>
+                    <option value="CAT">CAT 2025 (Sim)</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                    ▼
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 px-4 space-y-1 overflow-y-auto">
+            <a href="#" class="nav-item active flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-700">
+                <span>📊</span> Dashboard
+            </a>
+            <a href="#" class="nav-item flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-600">
+                <span>📚</span> Question Bank
+            </a>
+            <a href="#" class="nav-item flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-600">
+                <span>📝</span> Mock Tests
+            </a>
+            <a href="#" class="nav-item flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-600">
+                <span>📉</span> Analytics
+            </a>
+        </nav>
+
+        <!-- User Footer -->
+        <div class="p-4 border-t border-slate-200 bg-slate-50">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm">AJ</div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-slate-900 truncate">Alex Johnson</p>
+                    <p class="text-xs text-slate-500 truncate">Free Plan</p>
+                </div>
+                <button class="text-slate-400 hover:text-slate-600">⚙️</button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 lg:ml-72 flex flex-col h-screen bg-slate-50">
+        
+        <!-- Top Bar -->
+        <header class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
+            <div class="flex items-center gap-4">
+                <button onclick="toggleSidebar()" class="lg:hidden text-slate-500 hover:text-indigo-600 p-1">
+                    ☰
+                </button>
+                <div class="text-sm breadcrumbs text-slate-500 hidden sm:block">
+                    <span>Workspace</span> <span class="mx-2">/</span> <span class="font-medium text-slate-800">Dashboard</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <span id="current-date" class="text-xs font-semibold text-slate-400 uppercase tracking-wide hidden sm:block"></span>
+                <button class="text-slate-400 hover:text-indigo-600 relative">
+                    🔔
+                    <span class="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Content Scroll Area -->
+        <div class="flex-1 overflow-y-auto workspace-scroll p-4 lg:p-8">
+            <div class="max-w-7xl mx-auto space-y-8">
+
+                <!-- INTRO / CONTEXT -->
+                <div class="space-y-1">
+                    <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Good Morning, Alex 👋</h1>
+                    <p class="text-slate-500 text-sm max-w-2xl">
+                        This dashboard implements the <strong>"Focus Workspace"</strong> paradigm from the specification. 
+                        It aggregates your performance data (`stats`), active sessions (`continueSession`), and analytical insights (`weakAreas`) into a single view.
+                    </p>
+                </div>
+
+                <!-- SECTION 1: USER STATS (The North Star) -->
+                <div>
+                    <div class="mb-3">
+                        <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Performance Snapshot</h2>
+                        <p class="text-xs text-slate-500">Key metrics driven by the `dashboard_payload.stats` object from the spec.</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="stats-container">
+                        <!-- Stats injected via JS -->
+                    </div>
+                </div>
+
+                <!-- SECTION 2: WORKSPACE GRID -->
+                <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                    
+                    <!-- Left Column (Main Focus) -->
+                    <div class="xl:col-span-2 space-y-6">
+                        
+                        <!-- CONTINUE QUIZ CARD -->
+                        <div id="continue-quiz-card" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 transition-all hover:shadow-md">
+                            <!-- Injected via JS -->
+                        </div>
+
+                        <!-- WEAK AREAS CHART -->
+                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <div>
+                                    <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                                        <span class="text-red-500">⚠️</span> Needs Attention
+                                    </h3>
+                                    <p class="text-xs text-slate-500 mt-1">
+                                        Topics with high error rates (`errorRate` > 30%). Interaction: Hover for details.
+                                    </p>
+                                </div>
+                                <button class="text-xs text-indigo-600 font-medium hover:underline">View All</button>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="weakAreasChart"></canvas>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Right Column (Tools & Auxiliary) -->
+                    <div class="space-y-6">
+                        
+                        <!-- ACCURACY VISUALIZATION -->
+                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                            <h3 class="font-bold text-slate-800 mb-2">Accuracy Breakdown</h3>
+                            <p class="text-xs text-slate-500 mb-4">Visual representation of correct vs. incorrect responses.</p>
+                            <div class="chart-container" style="height: 200px;">
+                                <canvas id="accuracyChart"></canvas>
+                            </div>
+                            <div class="text-center mt-2">
+                                <span class="text-2xl font-bold text-slate-800" id="accuracy-display">--%</span>
+                                <span class="text-xs text-slate-500 block">Overall Precision</span>
+                            </div>
+                        </div>
+
+                        <!-- TIMELINE (GitHub Style) -->
+                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                            <h3 class="font-bold text-slate-800 mb-2">Study Streak</h3>
+                            <p class="text-xs text-slate-500 mb-4">
+                                Activity heatmap over the last 14 days. Green intensity indicates question volume.
+                            </p>
+                            <div id="timeline-grid" class="flex gap-2 justify-center py-2">
+                                <!-- Grid injected via JS -->
+                            </div>
+                            <div class="flex justify-between text-xs text-slate-400 mt-2 px-1">
+                                <span>14 days ago</span>
+                                <span>Today</span>
+                            </div>
+                        </div>
+
+                        <!-- BOOKMARKS -->
+                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                                    <span class="text-yellow-500">🔖</span> Saved Items
+                                </h3>
+                                <span class="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-0.5 rounded-full">3</span>
+                            </div>
+                            <ul class="space-y-2">
+                                <li class="p-2 hover:bg-slate-50 rounded-md cursor-pointer border border-transparent hover:border-slate-200 transition-colors group">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs font-bold text-slate-500 group-hover:text-indigo-600">Q.102</span>
+                                        <span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 rounded">Quant</span>
+                                    </div>
+                                    <p class="text-sm font-medium text-slate-700 mt-1">Probability: Coin Toss Trick</p>
+                                </li>
+                                <li class="p-2 hover:bg-slate-50 rounded-md cursor-pointer border border-transparent hover:border-slate-200 transition-colors group">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs font-bold text-slate-500 group-hover:text-indigo-600">RC-4</span>
+                                        <span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 rounded">Verbal</span>
+                                    </div>
+                                    <p class="text-sm font-medium text-slate-700 mt-1">Economics Passage</p>
+                                </li>
+                            </ul>
+                            <button class="w-full mt-4 py-2 text-xs font-medium text-slate-500 hover:text-indigo-600 border border-slate-200 rounded-lg hover:border-indigo-200 transition-colors">
+                                View All Bookmarks
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Footer Info -->
+                <div class="text-center py-8 text-xs text-slate-400">
+                    <p>Designed according to Specification v1.0.0 | Theme: "Focus Workspace"</p>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // --- 1. DATA MODELS (From Spec) ---
+        
+        // Mock Data Store simulating an API response based on the spec
+        const APP_DATA = {
+            GMAT: {
+                stats: {
+                    accuracy: 78.5,
+                    questionsToday: 42,
+                    streakDays: 12,
+                    percentile: 85
+                },
+                continueSession: {
+                    examName: "Mock Test 4 - Quant",
+                    subSection: "Section 2: Algebra & Geometry",
+                    progress: 65,
+                    totalQuestions: 40,
+                    completedQuestions: 26,
+                    timeLeft: "14 mins"
+                },
+                weakAreas: [
+                    { topic: "Algebra", errorRate: 45 },
+                    { topic: "Geometry", errorRate: 38 },
+                    { topic: "Data Sufficiency", errorRate: 32 }
+                ],
+                // Simulated timeline data (0-4 intensity)
+                timeline: [1, 2, 4, 3, 0, 1, 2, 4, 4, 3, 1, 0, 2, 3] 
+            },
+            // Simulated data for context switching demo
+            CAT: {
+                stats: {
+                    accuracy: 62.0,
+                    questionsToday: 15,
+                    streakDays: 5,
+                    percentile: 55
+                },
+                continueSession: {
+                    examName: "Daily Practice: DILR",
+                    subSection: "Set 5: Circular Arrangement",
+                    progress: 30,
+                    totalQuestions: 20,
+                    completedQuestions: 6,
+                    timeLeft: "25 mins"
+                },
+                weakAreas: [
+                    { topic: "Number Systems", errorRate: 60 },
+                    { topic: "Logarithms", errorRate: 55 },
+                    { topic: "Puzzles", errorRate: 40 }
+                ],
+                timeline: [0, 0, 1, 1, 2, 1, 0, 1, 2, 2, 3, 2, 1, 1]
+            }
+        };
+
+        // State Management
+        let currentState = {
+            examContext: 'GMAT'
+        };
+
+        // Chart Instances
+        let weakAreasChartInstance = null;
+        let accuracyChartInstance = null;
+
+        // --- 2. INITIALIZATION & UTILS ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initDate();
+            renderDashboard();
+        });
+
+        function initDate() {
+            const date = new Date();
+            const options = { weekday: 'long', month: 'short', day: 'numeric' };
+            document.getElementById('current-date').textContent = date.toLocaleDateString('en-US', options);
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+            const isClosed = sidebar.classList.contains('-translate-x-full');
+            
+            if (isClosed) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+            }
+        }
+
+        function switchContext(newContext) {
+            currentState.examContext = newContext;
+            
+            // Visual feedback on button (optional logic could go here)
+            
+            // Re-render
+            renderDashboard();
+        }
+
+        // --- 3. RENDER LOGIC ---
+
+        function renderDashboard() {
+            const data = APP_DATA[currentState.examContext];
+
+            // Render Stats
+            renderStats(data.stats);
+
+            // Render Continue Card
+            renderContinueCard(data.continueSession);
+
+            // Render Timeline
+            renderTimeline(data.timeline);
+
+            // Update Charts
+            updateCharts(data);
+        }
+
+        function renderStats(stats) {
+            const container = document.getElementById('stats-container');
+            
+            // Logic to determine color/icon based on metric type
+            const statConfig = [
+                { 
+                    label: "Accuracy", 
+                    value: stats.accuracy + "%", 
+                    desc: "↗︎ Top 10% today", 
+                    icon: "🎯", 
+                    colorClass: "text-indigo-600", 
+                    bgClass: "bg-indigo-50" 
+                },
+                { 
+                    label: "Current Streak", 
+                    value: stats.streakDays + " Days", 
+                    desc: "Keep it up!", 
+                    icon: "⚡", 
+                    colorClass: "text-amber-500", 
+                    bgClass: "bg-amber-50" 
+                },
+                { 
+                    label: "Questions Today", 
+                    value: stats.questionsToday, 
+                    desc: "Goal: 50", 
+                    icon: "✅", 
+                    colorClass: "text-emerald-600", 
+                    bgClass: "bg-emerald-50" 
+                }
+            ];
+
+            container.innerHTML = statConfig.map(stat => `
+                <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex items-start justify-between transition-transform hover:-translate-y-1 duration-200">
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">${stat.label}</p>
+                        <h3 class="text-2xl font-bold text-slate-800">${stat.value}</h3>
+                        <p class="text-xs text-slate-500 mt-1">${stat.desc}</p>
+                    </div>
+                    <div class="w-10 h-10 rounded-lg ${stat.bgClass} flex items-center justify-center text-lg shadow-sm">
+                        ${stat.icon}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderContinueCard(session) {
+            const container = document.getElementById('continue-quiz-card');
+            container.innerHTML = `
+                <div class="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
+                    <div>
+                        <span class="inline-block px-2 py-1 bg-indigo-100 text-indigo-700 text-[10px] font-bold uppercase rounded-md mb-2 tracking-wide">In Progress</span>
+                        <h2 class="text-xl font-bold text-slate-900">${session.examName}</h2>
+                        <p class="text-sm text-slate-500">${session.subSection}</p>
+                    </div>
+                    <div class="text-right hidden sm:block">
+                        <span class="text-2xl font-bold text-indigo-600">${session.progress}%</span>
+                        <span class="block text-xs text-slate-400">Completed</span>
+                    </div>
+                </div>
+                
+                <div class="w-full bg-slate-100 rounded-full h-3 mb-2 overflow-hidden">
+                    <div class="bg-indigo-600 h-3 rounded-full transition-all duration-1000 ease-out" style="width: ${session.progress}%"></div>
+                </div>
+                
+                <div class="flex justify-between items-center mt-4">
+                    <div class="text-xs font-semibold text-slate-500 flex gap-4">
+                        <span class="flex items-center gap-1">📝 ${session.completedQuestions}/${session.totalQuestions} Solved</span>
+                        <span class="flex items-center gap-1">⏱️ ~${session.timeLeft} left</span>
+                    </div>
+                    <button class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 px-4 rounded-lg shadow-sm shadow-indigo-200 transition-all flex items-center gap-2">
+                        Resume Quiz <span>→</span>
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderTimeline(data) {
+            const container = document.getElementById('timeline-grid');
+            
+            // Heatmap color mapping (Tailwind classes)
+            const getColor = (intensity) => {
+                if (intensity === 0) return 'bg-slate-100';
+                if (intensity === 1) return 'bg-emerald-200';
+                if (intensity === 2) return 'bg-emerald-300';
+                if (intensity === 3) return 'bg-emerald-400';
+                return 'bg-emerald-500';
+            };
+
+            // Split into 2 rows of 7 days
+            // Note: This is a simplified visual representation for the spec
+            const gridHTML = data.map((val, i) => `
+                <div class="w-6 h-6 sm:w-8 sm:h-8 rounded ${getColor(val)} heatmap-cell" title="Day ${i+1}: Activity Level ${val}"></div>
+            `).join('');
+
+            // CSS Grid layout for 7 columns (2 rows handled by wrapping if needed, but we used flex in the container)
+            // Let's actually enforce a grid here
+            container.innerHTML = gridHTML;
+            container.className = "grid grid-cols-7 gap-2";
+        }
+
+        // --- 4. CHARTS (Chart.js) ---
+
+        function updateCharts(data) {
+            updateWeakAreasChart(data.weakAreas);
+            updateAccuracyChart(data.stats.accuracy);
+        }
+
+        function updateWeakAreasChart(weakAreas) {
+            const ctx = document.getElementById('weakAreasChart').getContext('2d');
+            
+            const labels = weakAreas.map(item => item.topic);
+            const values = weakAreas.map(item => item.errorRate);
+
+            if (weakAreasChartInstance) {
+                weakAreasChartInstance.data.labels = labels;
+                weakAreasChartInstance.data.datasets[0].data = values;
+                weakAreasChartInstance.update();
+            } else {
+                weakAreasChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Error Rate (%)',
+                            data: values,
+                            backgroundColor: '#F87171', // Red-400
+                            borderRadius: 4,
+                            barThickness: 20,
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y', // Horizontal Bar
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `Error Rate: ${context.raw}%`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                max: 100,
+                                grid: { color: '#F1F5F9' },
+                                ticks: { font: { size: 10 } }
+                            },
+                            y: {
+                                grid: { display: false },
+                                ticks: { font: { weight: 'bold', size: 11 } }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function updateAccuracyChart(accuracy) {
+            document.getElementById('accuracy-display').innerText = accuracy + '%';
+            
+            const ctx = document.getElementById('accuracyChart').getContext('2d');
+            const remaining = 100 - accuracy;
+
+            if (accuracyChartInstance) {
+                accuracyChartInstance.data.datasets[0].data = [accuracy, remaining];
+                accuracyChartInstance.update();
+            } else {
+                accuracyChartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Correct', 'Incorrect'],
+                        datasets: [{
+                            data: [accuracy, remaining],
+                            backgroundColor: ['#4F46E5', '#E2E8F0'], // Indigo-600 vs Slate-200
+                            borderWidth: 0,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '75%',
+                        plugins: {
+                            legend: { 
+                                position: 'bottom',
+                                labels: { usePointStyle: true, boxWidth: 8, font: { size: 10 } }
+                            },
+                            tooltip: { enabled: true }
+                        }
+                    }
+                });
+            }
+        }
+
+    </script>
+
+<!-- Chosen Palette: Slate (Neutral) + Indigo (Primary) + Emerald/Amber/Red (Functional Semantic) -->
+<!-- Application Structure Plan: 
+     The app is designed as a direct realization of the "Workspace" specification.
+     1. Sidebar: Fixed context switcher and navigation to allow rapid switching between exam types (GMAT/CAT) and views.
+     2. Top Bar: Minimal breadcrumbs and notifications to maintain focus.
+     3. Main Content:
+        - Intro: Provides context about the "Focus Workspace" theme.
+        - Stats Row: Immediate visibility of KPIs (The "North Star" from spec).
+        - Main Grid:
+          - "Continue Quiz" takes prominence (Primary Action).
+          - "Weak Areas" sits below/beside to drive the "Review Loop".
+          - "Accuracy" and "Timeline" provide supporting analytical context.
+     The layout shifts from 1-column (Mobile) to 3-column (Desktop) to utilize screen real estate effectively without clutter.
+-->
+<!-- Visualization & Content Choices:
+     1. Report Info: "Weak Areas" (Topic + Error Rate).
+        - Goal: Review/Compare.
+        - Viz: Horizontal Bar Chart (Chart.js).
+        - Justification: Allows easy comparison of error magnitude across long topic names.
+     
+     2. Report Info: "Accuracy" (Percentage).
+        - Goal: Inform/Monitor.
+        - Viz: Doughnut Chart (Chart.js).
+        - Justification: Visually represents the "whole" vs "part", cleaner than a simple text number.
+     
+     3. Report Info: "Timeline" (Activity over 14 days).
+        - Goal: Track Habit.
+        - Viz: HTML Grid Heatmap (JS Generated).
+        - Justification: Mimics "GitHub contributions" to gamify consistency. Used CSS grid instead of Canvas for crisp rendering of simple squares.
+     
+     4. Report Info: "Continue Quiz" (Progress).
+        - Goal: Action.
+        - Viz: HTML Progress Bar + JS Animation.
+        - Justification: Standard UI pattern for task completion.
+-->
+<!-- CONFIRMATION: NO SVG graphics used (Data visualizations are Canvas/HTML). NO Mermaid JS used. Icons are Unicode or standard text-based representations. -->
+
+</body>
+</html>
